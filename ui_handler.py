@@ -48,6 +48,29 @@ def display_status(message, spinner_style="dots"):
         # 실제 작업은 이 함수를 호출한 곳에서 이루어져야 합니다.
         pass
 
+def get_api_keys():
+    """사용자로부터 API 키를 안전하게 입력받습니다."""
+    questions = [
+        {
+            'type': 'password',
+            'name': 'gemini_api_key',
+            'message': 'Gemini API 키를 입력하세요:',
+        },
+        {
+            'type': 'password',
+            'name': 'google_tts_api_key',
+            'message': 'Google TTS API 키를 입력하세요:',
+        },
+        {
+            'type': 'password',
+            'name': 'youtube_api_key',
+            'message': 'YouTube API 키 (선택 사항):',
+        }
+    ]
+    console.print(Panel.fit("[bold yellow]API 키를 입력해주세요.[/bold yellow]\n키는 입력 시 화면에 표시되지 않습니다."))
+    answers = prompt(questions)
+    return answers
+
 def get_user_input(prompt_message="나: "):
     """사용자 입력을 받습니다."""
     return console.input(f"[bold green]{prompt_message}[/bold green]")

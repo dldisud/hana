@@ -224,13 +224,21 @@ def save_chat_history(chat_history):
 # 채팅 리스너 설정 함수 임포트
 from setup_chat_listener import setup_chat_listener
 
-def main(args):
+def main():
     ui_handler.display_welcome()
-    ui_handler.display_status("시스템 초기화 중...")
+
+    api_keys = ui_handler.get_api_keys()
+    gemini_api_key = api_keys.get('gemini_api_key')
+    google_tts_api_key = api_keys.get('google_tts_api_key')
+    youtube_api_key = api_keys.get('youtube_api_key')
+
+    if not gemini_api_key or not google_tts_api_key:
+        ui_handler.console.print("[bold red]필수 API 키가 입력되지 않았습니다. 프로그램을 종료합니다.[/bold red]")
+        return
 
     try:
         ui_handler.display_status("Gemini API 키 확인 중...")
-        genai.configure(api_key=args.gemini_api_key)
+        genai.configure(api_key=gemini_api_key)
         model = genai.GenerativeModel('gemini-2.5-flash-lite-preview-06-17')
         model.generate_content("테스트")
         ui_handler.console.print("[green]Gemini API 키 확인 완료![/green]")
@@ -238,10 +246,12 @@ def main(args):
         ui_handler.console.print(f"[bold red]Gemini API 키 오류:[/bold red] {e}")
         return
 
-    tts = setup_speech_synthesis(args.google_tts_api_key, args.rvc_lib_path)
+    # rvc_lib_path는 현재 하드코딩되어 있으므로, None으로 전달합니다.
+    # 사용자가 직접 speech_synthesis.py를 수정해야 합니다.
+    tts = setup_speech_synthesis(google_tts_api_key, rvc_lib_path=None)
     
     try:
-        chat = setup_gemini_model(args.gemini_api_key)
+        chat = setup_gemini_model(gemini_api_key)
     except Exception as e:
         ui_handler.console.print(f"[bold red]Gemini 모델 설정 오류:[/bold red] {e}")
         return
@@ -260,9 +270,9 @@ def main(args):
     elif mode == "2":
         run_voice_mode(tts, chat, whisper_model, recorder, chat_history)
     elif mode == "3":
-        run_streaming_mode(tts, chat, args, chat_history)
+        run_streaming_mode(tts, chat, youtube_api_key, chat_history)
     else:
-        print("잘못된 모드를 선택했습니다. 프로그램을 종료합니다.")
+        ui_handler.console.print("[bold red]잘못된 모드를 선택했습니다. 프로그램을 종료합니다.[/bold red]")
 
 def run_text_mode(tts, chat, chat_history):
     ui_handler.console.print(Panel.fit("[bold cyan]텍스트 채팅 시작[/bold cyan]\n'종료'를 입력하면 대화가 종료됩니다."))
@@ -361,7 +371,7 @@ def run_voice_mode(tts, chat, whisper_model, recorder, chat_history):
     if chat_history:
         save_chat_history(chat_history)
             
-def run_streaming_mode(tts, chat, args, chat_history):
+def run_streaming_mode(tts, chat, youtube_api_key, chat_history):
     global is_muted
     ui_handler.console.print(Panel.fit("[bold cyan]채팅 스트리밍 모드 시작[/bold cyan]"))
 
@@ -380,7 +390,7 @@ def run_streaming_mode(tts, chat, args, chat_history):
     conversation_handler = ConversationHandler(tts, chat)
 
     with ui_handler.console.status("[bold yellow]채팅 리스너 설정 중...[/bold yellow]"):
-        chat_listener = setup_chat_listener(channel_id, conversation_handler, platform=platform, api_key=args.youtube_api_key)
+        chat_listener = setup_chat_listener(channel_id, conversation_handler, platform=platform, api_key=youtube_api_key)
 
     stt = RealtimeSTT(model_size="medium", language="ko")
     stt.start()
@@ -452,10 +462,4 @@ def run_streaming_mode(tts, chat, args, chat_history):
         print("잘못된 모드를 선택했습니다. 프로그램을 종료합니다.")
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Hana AI Streamer")
-    parser.add_argument("--gemini-api-key", required=True, help="Gemini API 키")
-    parser.add_argument("--google-tts-api-key", required=True, help="Google TTS API 키")
-    parser.add_argument("--youtube-api-key", help="YouTube API 키 (채팅 스트리밍 모드에서 필요)")
-    parser.add_argument("--rvc-lib-path", help="RVC 라이브러리 경로")
-    args = parser.parse_args()
-    main(args)
+    main()
