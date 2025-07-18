@@ -14,6 +14,7 @@ import threading
 from datetime import datetime
 from conversation_handler import ConversationHandler
 from realtime_stt import RealtimeSTT
+import ui_handler
 
 # 글로벌 변수
 is_recording = False
@@ -110,13 +111,13 @@ def setup_gemini_model(api_key):
     ]
     
     generation_config = {
-        "temperature": 0.9,
+        "temperature": 0.2,
         "top_p": 1,
         "top_k": 32,
         "max_output_tokens": 1024,
     }
     
-    model = genai.GenerativeModel(model_name='gemini-2.0-flash', 
+    model = genai.GenerativeModel(model_name='gemini-2.5-flash-lite-preview-06-17',
                                   generation_config=generation_config,
                                   safety_settings=safety_settings)
     
@@ -224,22 +225,17 @@ def save_chat_history(chat_history):
 from setup_chat_listener import setup_chat_listener
 
 def main(args):
-    print("=" * 50)
-    print("하나 AI 스트리머 시스템 초기화")
-    print("=" * 50)
-    print("Gemini API 키를 확인하는 중...")
-    
+    ui_handler.display_welcome()
+    ui_handler.display_status("시스템 초기화 중...")
+
     try:
+        ui_handler.display_status("Gemini API 키 확인 중...")
         genai.configure(api_key=args.gemini_api_key)
-        model = genai.GenerativeModel('gemini-2.0-flash')
-        response = model.generate_content("테스트")
-        print("Gemini API 키 확인 완료!")
+        model = genai.GenerativeModel('gemini-2.5-flash-lite-preview-06-17')
+        model.generate_content("테스트")
+        ui_handler.console.print("[green]Gemini API 키 확인 완료![/green]")
     except Exception as e:
-        print(f"Gemini API 키 오류: {str(e)}")
-        print("이 오류는 API 키가 유효하지 않거나 서비스에 접근할 권한이 없을 때 발생합니다.")
-        print("1. https://makersuite.google.com/app/apikey 에서 새로운 API 키를 생성하세요.")
-        print("2. 생성된 API 키를 --gemini-api-key 인자로 전달하여 프로그램을 실행해주세요.")
-        print("프로그램을 종료합니다.")
+        ui_handler.console.print(f"[bold red]Gemini API 키 오류:[/bold red] {e}")
         return
 
     tts = setup_speech_synthesis(args.google_tts_api_key, args.rvc_lib_path)
@@ -247,21 +243,17 @@ def main(args):
     try:
         chat = setup_gemini_model(args.gemini_api_key)
     except Exception as e:
-        print("프로그램을 종료합니다.")
+        ui_handler.console.print(f"[bold red]Gemini 모델 설정 오류:[/bold red] {e}")
         return
     
-    print("음성 인식 모델을 로드하는 중...")
+    ui_handler.display_status("음성 인식 모델 로드 중...")
     whisper_model = whisper.load_model("base")
     
     recorder = VoiceRecorder()
     
     chat_history = []
     
-    print("\n=== 하나 AI 시스템 준비 완료 ===")
-    print("1. 텍스트 입력 모드")
-    print("2. 음성 인식 모드 (스페이스바)")
-    print("3. 채팅 스트리밍 모드 (실시간 음성 포함)")
-    mode = input("모드를 선택하세요 (1, 2 또는 3): ")
+    mode = ui_handler.select_mode()
 
     if mode == "1":
         run_text_mode(tts, chat, chat_history)
@@ -273,32 +265,33 @@ def main(args):
         print("잘못된 모드를 선택했습니다. 프로그램을 종료합니다.")
 
 def run_text_mode(tts, chat, chat_history):
-    print("\n=== 텍스트 채팅 시작 ===")
-    print("'종료'를 입력하면 대화가 종료됩니다.")
+    ui_handler.console.print(Panel.fit("[bold cyan]텍스트 채팅 시작[/bold cyan]\n'종료'를 입력하면 대화가 종료됩니다."))
 
     start_message = "반갑습니다. 엘리트 프로페서 하나입니다. 본 교수와 함께하는 오늘의 연구를 시작해보도록 하죠."
 
-    print(f"하나: {start_message}")
+    ui_handler.display_chat("하나", start_message, color="magenta")
     audio_path = tts.synthesize_with_emotion(start_message, emotion="excited")
     if audio_path:
         tts.play_audio(audio_path)
 
     while True:
-        user_input = input("\n나: ").strip()
+        user_input = ui_handler.get_user_input()
         
         if user_input.lower() == "종료":
-            print("\n대화를 종료합니다.")
+            ui_handler.console.print("[bold yellow]대화를 종료합니다.[/bold yellow]")
             break
             
         emotion = get_emotion_from_text(user_input)
 
         try:
-            response = chat.send_message(user_input)
-            ai_response = response.text
+            with ui_handler.console.status("[bold yellow]하나가 답변을 생성 중입니다...[/bold yellow]"):
+                response = chat.send_message(user_input)
+                ai_response = response.text
 
-            print(f"\n하나: {ai_response}")
-            
-            audio_path = tts.synthesize_with_emotion(ai_response, emotion=emotion)
+            ui_handler.display_chat("하나", ai_response, color="magenta")
+
+            with ui_handler.console.status("[bold yellow]음성 합성 중...[/bold yellow]"):
+                audio_path = tts.synthesize_with_emotion(ai_response, emotion=emotion)
             if audio_path:
                 tts.play_audio(audio_path)
 
@@ -308,99 +301,97 @@ def run_text_mode(tts, chat, chat_history):
             })
 
         except Exception as e:
-            print(f"\n오류 발생: {str(e)}")
-            print("다시 시도해주세요.")
+            ui_handler.console.print(f"[bold red]오류 발생:[/bold red] {e}")
 
     if chat_history:
         save_chat_history(chat_history)
 
 def run_voice_mode(tts, chat, whisper_model, recorder, chat_history):
     global is_muted
-    print("\n=== 음성 인식 모드 시작 ===")
-    print("'스페이스바'를 누르고 있는 동안 음성이 녹음됩니다.")
-    print("'ESC'를 누르면 종료됩니다.")
-    print("'m'을 누르면 음소거/음소거 해제가 토글됩니다.")
+    ui_handler.console.print(Panel.fit("[bold cyan]음성 인식 모드 시작[/bold cyan]\n'스페이스바'를 누르고 있는 동안 음성이 녹음됩니다.\n'ESC'를 누르면 종료됩니다."))
 
     start_message = "반갑습니다. 엘리트 프로페서 하나입니다. 본 교수와 함께하는 오늘의 연구를 시작해보도록 하죠."
-    print(f"하나: {start_message}")
+    ui_handler.display_chat("하나", start_message, color="magenta")
     audio_path = tts.synthesize_with_emotion(start_message, emotion="excited")
     if audio_path and not is_muted:
         tts.play_audio(audio_path)
 
     def handle_voice_input():
         recorder.start_recording()
-        print("\n녹음 시작... (스페이스바를 떼면 종료)")
+        ui_handler.console.print("[bold yellow]녹음 시작... (스페이스바를 떼면 종료)[/bold yellow]")
         keyboard.wait('space', suppress=True)
         recorder.stop_recording_and_save()
-        print("녹음 종료, 처리 중...")
+        ui_handler.display_status("녹음 종료, 처리 중...")
 
         text = process_voice_input(recorder.output_filename, whisper_model)
         if text:
-            print(f"\n인식된 텍스트: {text}")
+            ui_handler.display_chat("나 (음성)", text, color="green")
             emotion = get_emotion_from_text(text)
             try:
-                response = chat.send_message(text)
-                ai_response = response.text
-                print(f"\n하나: {ai_response}")
+                with ui_handler.console.status("[bold yellow]하나가 답변을 생성 중입니다...[/bold yellow]"):
+                    response = chat.send_message(text)
+                    ai_response = response.text
                 
-                audio_path = tts.synthesize_with_emotion(ai_response, emotion=emotion)
+                ui_handler.display_chat("하나", ai_response, color="magenta")
+
+                with ui_handler.console.status("[bold yellow]음성 합성 중...[/bold yellow]"):
+                    audio_path = tts.synthesize_with_emotion(ai_response, emotion=emotion)
                 if audio_path and not is_muted:
                     tts.play_audio(audio_path)
                 
                 chat_history.append({"user": text, "hana": ai_response})
             except Exception as e:
-                print(f"\n오류 발생: {str(e)}")
-                print("다시 시도해주세요.")
+                ui_handler.console.print(f"[bold red]오류 발생:[/bold red] {e}")
         else:
-            print("\n음성을 인식하지 못했습니다. 다시 시도해주세요.")
+            ui_handler.console.print("[bold red]음성을 인식하지 못했습니다. 다시 시도해주세요.[/bold red]")
 
     while True:
-        print("\n스페이스바를 눌러 녹음을 시작하세요. (ESC: 종료, m: 음소거 토글)")
+        ui_handler.console.print("\n[bold]스페이스바를 눌러 녹음을 시작하세요.[/bold] (ESC: 종료, m: 음소거 토글)")
         key = keyboard.read_key()
         if key == 'space':
             handle_voice_input()
         elif key == 'm':
             is_muted = not is_muted
-            print(f"\n음소거 {'활성화' if is_muted else '비활성화'}")
+            ui_handler.console.print(f"[bold yellow]음소거 {'활성화' if is_muted else '비활성화'}[/bold yellow]")
         elif key == 'esc':
             break
 
-    print("\n음성 인식 모드를 종료합니다.")
+    ui_handler.console.print("[bold yellow]음성 인식 모드를 종료합니다.[/bold yellow]")
     recorder.close()
     if chat_history:
         save_chat_history(chat_history)
             
 def run_streaming_mode(tts, chat, args, chat_history):
     global is_muted
-    print("\n=== 채팅 스트리밍 모드 시작 (실시간 음성 포함) ===")
+    ui_handler.console.print(Panel.fit("[bold cyan]채팅 스트리밍 모드 시작[/bold cyan]"))
 
-    platform = input("플랫폼을 선택하세요 (youtube 또는 chzzk): ").strip().lower()
-    if platform not in ["youtube", "chzzk"]:
-        platform = "youtube"  # 기본값은 유튜브
-        
-    channel_id = input("채널 ID 또는 비디오 ID를 입력하세요: ")
+    questions = [
+        {'type': 'list', 'name': 'platform', 'message': '플랫폼을 선택하세요:', 'choices': ['youtube', 'chzzk']},
+        {'type': 'input', 'name': 'channel_id', 'message': '채널 ID 또는 비디오 ID를 입력하세요:'}
+    ]
+    answers = prompt(questions)
+    platform = answers.get('platform')
+    channel_id = answers.get('channel_id')
 
-    # 대화 핸들러 설정
+    if not channel_id:
+        ui_handler.console.print("[bold red]채널 ID가 입력되지 않았습니다. 스트리밍 모드를 종료합니다.[/bold red]")
+        return
+
     conversation_handler = ConversationHandler(tts, chat)
 
-    # 채팅 리스너 설정
-    chat_listener = setup_chat_listener(channel_id, conversation_handler, platform=platform, api_key=args.youtube_api_key)
+    with ui_handler.console.status("[bold yellow]채팅 리스너 설정 중...[/bold yellow]"):
+        chat_listener = setup_chat_listener(channel_id, conversation_handler, platform=platform, api_key=args.youtube_api_key)
 
-    # 실시간 음성 인식 설정
     stt = RealtimeSTT(model_size="medium", language="ko")
     stt.start()
 
-    # 시작 멘트
     start_message = "반갑습니다. 엘리트 프로페서 하나입니다. 본 교수와 함께하는 오늘의 연구를 시작해보도록 하죠."
-    print(f"하나: {start_message}")
+    ui_handler.display_chat("하나", start_message, color="magenta")
     audio_path = tts.synthesize_with_emotion(start_message, emotion="excited")
     if audio_path and not is_muted:
         tts.play_audio(audio_path)
 
-    print("\n채팅 스트리밍 모드가 시작되었습니다.")
-    print("실시간 음성 인식이 활성화되었습니다. 말하면 하나가 반응합니다.")
-    print("'q'를 입력하면 종료됩니다.")
-    print("'m'을 입력하면 음소거/음소거 해제가 토글됩니다.")
+    ui_handler.console.print(Panel.fit("[bold green]채팅 스트리밍 모드가 시작되었습니다.[/bold green]\n실시간 음성 인식이 활성화되었습니다. 말하면 하나가 반응합니다.\n'q'를 입력하면 종료됩니다."))
 
     def user_input_thread():
         global is_muted

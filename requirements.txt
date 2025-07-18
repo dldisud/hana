@@ -1,0 +1,13 @@
+google-generativeai
+gtts
+pydub
+playsound
+pyaudio
+openai-whisper
+keyboard
+websockets
+rich
+PyInquirer
+protobuf==3.20.3
+torch
+fairseq
