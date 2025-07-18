@@ -44,8 +44,6 @@ def display_chat(username, text, color="white"):
 def display_status(message, spinner_style="dots"):
     """상태 메시지를 스피너와 함께 표시합니다."""
     with Spinner(spinner_style, text=message) as spinner:
-        # 이 부분은 실제 작업이 수행되는 동안 스피너를 표시하기 위한 것입니다.
-        # 실제 작업은 이 함수를 호출한 곳에서 이루어져야 합니다.
         pass
 
 def get_api_keys():
