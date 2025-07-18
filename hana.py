@@ -111,13 +111,13 @@ def setup_gemini_model(api_key):
     ]
     
     generation_config = {
-        "temperature": 0.9,
+        "temperature": 0.2,
         "top_p": 1,
         "top_k": 32,
         "max_output_tokens": 1024,
     }
     
-    model = genai.GenerativeModel(model_name='gemini-2.0-flash', 
+    model = genai.GenerativeModel(model_name='gemini-2.5-flash-lite-preview-06-17',
                                   generation_config=generation_config,
                                   safety_settings=safety_settings)
     
@@ -231,7 +231,7 @@ def main(args):
     try:
         ui_handler.display_status("Gemini API 키 확인 중...")
         genai.configure(api_key=args.gemini_api_key)
-        model = genai.GenerativeModel('gemini-2.0-flash')
+        model = genai.GenerativeModel('gemini-2.5-flash-lite-preview-06-17')
         model.generate_content("테스트")
         ui_handler.console.print("[green]Gemini API 키 확인 완료![/green]")
     except Exception as e:
