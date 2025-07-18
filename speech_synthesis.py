@@ -14,7 +14,7 @@ from rvc.infer.infer import VoiceConverter
 from rvc.configs.config import Config
 
 class GoogleTTS:
-    def __init__(self, api_key, temp_dir="E:/hana/temp", rvc_model_path="E:/hana/ApplioV3.2.8-bugfix/logs/Arcueid Brunestud/model.pth", rvc_index_path="E:/hana/ApplioV3.2.8-bugfix/logs/Arcueid Brunestud/model.index"):
+    def __init__(self, api_key, temp_dir="temp", rvc_model_path="logs/Arcueid Brunestud/model.pth", rvc_index_path="logs/Arcueid Brunestud/model.index"):
         self.api_key = api_key
         self.temp_dir = temp_dir
         self.default_language = "ko-KR"
